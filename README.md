@@ -116,3 +116,7 @@ await Stay22.forceNotification();
 
 Debug helper that displays a notification without the usual schedule. Leave this
 call out of the binary you send to users.
+
+## Support
+
+See https://dev.stay22.com/docs/mobile-sdk, or email support@stay22.com.
