@@ -1,0 +1,1 @@
+{"version":3,"file":"plugin.cjs.js","sources":["esm/index.js"],"sourcesContent":["import { registerPlugin } from '@capacitor/core';\nconst Stay22 = registerPlugin('Stay22');\nexport * from './definitions';\nexport { Stay22 };\n"],"names":["registerPlugin"],"mappings":";;;;AACK,MAAC,MAAM,GAAGA,mBAAc,CAAC,QAAQ;;"}

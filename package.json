@@ -1,0 +1,51 @@
+{
+  "name": "@stay22/capacitor",
+  "version": "0.1.0",
+  "description": "Stay22 SDK for Capacitor. Turns explicit travel intent into a single, well-timed local notification that opens a Stay22 accommodation booking page.",
+  "license": "SEE LICENSE IN LICENSE",
+  "main": "dist/plugin.cjs.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "unpkg": "dist/plugin.js",
+  "files": [
+    "android/src/main/",
+    "android/build.gradle",
+    "dist/",
+    "ios/Sources/",
+    "ios/Frameworks/",
+    "Stay22Capacitor.podspec",
+    "LICENSE"
+  ],
+  "capacitor": {
+    "android": {
+      "src": "android"
+    },
+    "ios": {
+      "src": "ios"
+    }
+  },
+  "peerDependencies": {
+    "@capacitor/core": ">=6.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "npm run clean && tsc && rollup -c rollup.config.mjs",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run verify:ios:published && npm run verify:android:published",
+    "sync-binaries": "./scripts/sync-binaries.sh",
+    "sync-binaries:local": "./scripts/sync-binaries.sh --local",
+    "verify:android": "./scripts/verify-android.sh",
+    "verify:android:published": "./scripts/verify-android.sh --published",
+    "verify:ios": "./scripts/verify-ios.sh",
+    "verify:ios:published": "./scripts/verify-ios.sh --published"
+  },
+  "devDependencies": {
+    "@capacitor/android": "6.2.2",
+    "@capacitor/core": "6.2.2",
+    "rimraf": "^6.0.1",
+    "rollup": "^4.24.0",
+    "typescript": "~5.4.0"
+  }
+}
