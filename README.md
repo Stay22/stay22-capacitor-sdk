@@ -7,7 +7,7 @@ This Capacitor 6 plugin wraps the Stay22 iOS and Android SDKs.
 Install from GitHub. The package is not published to npm.
 
 ```bash
-npm install github:Stay22/stay22-capacitor-sdk#0.1.0
+npm install github:Stay22/stay22-capacitor-sdk#0.1.1
 npx cap sync
 ```
 
@@ -44,6 +44,11 @@ Android that call can miss the first Activity resume.
 The wrapped Android SDK needs API 26. A default Capacitor 6 app is API 22; set
 `minSdkVersion` to 26 in `variables.gradle`.
 
+On iOS the plugin needs a deployment target of 15.0. A default Capacitor 6 app is 13.0,
+and `npx cap sync` stops with "required a higher minimum deployment target" until you
+raise it. Set `platform :ios, '15.0'` in `ios/App/Podfile` and the App target's iOS
+Deployment Target to 15.0 in Xcode, then run `npx cap sync ios` again.
+
 The Android host also has to declare Stay22's Maven repository. In the top-level
 `android/build.gradle`:
 
@@ -60,6 +65,37 @@ allprojects {
 If repositories live in `settings.gradle` (`dependencyResolutionManagement`) instead, add
 the same URL there. Templates that set `FAIL_ON_PROJECT_REPOS` will reject the
 `allprojects` block above.
+
+## App detection on iOS
+
+The SDK checks which travel booking apps are on the device and uses that to pick the
+booking experience. iOS only answers that check for URL schemes the host app has
+declared, and returns `false` for any it has not, so add all five to
+`ios/App/App/Info.plist`:
+
+```xml
+<key>LSApplicationQueriesSchemes</key>
+<array>
+    <string>airbnb</string>
+    <string>booking</string>
+    <string>expda</string>
+    <string>hotelsapp</string>
+    <string>agoda</string>
+</array>
+```
+
+| Scheme | App |
+|---|---|
+| `airbnb` | Airbnb |
+| `booking` | Booking.com |
+| `expda` | Expedia |
+| `hotelsapp` | Hotels.com |
+| `agoda` | Agoda |
+
+Leave one out and the SDK treats that app as absent. It logs what is missing at startup,
+by app rather than by scheme, so a missing `expda` reads as `expedia` in the Xcode
+console. Android needs nothing here: the `<queries>` block ships inside the Stay22
+Android SDK and manifest merging folds it into your app.
 
 ## Use
 
