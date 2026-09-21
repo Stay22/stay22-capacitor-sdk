@@ -7,7 +7,7 @@ This Capacitor 6 plugin wraps the Stay22 iOS and Android SDKs.
 Install from GitHub. The package is not published to npm.
 
 ```bash
-npm install github:Stay22/stay22-capacitor-sdk#0.1.1
+npm install github:Stay22/stay22-capacitor-sdk#0.1.2
 npx cap sync
 ```
 

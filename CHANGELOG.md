@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-09-21
+
+### Fixed
+- Your own local notifications could stop appearing. If this plugin loaded before
+  `@capacitor/local-notifications`, Stay22 ended up holding Capacitor's single
+  notification handler with nothing chained behind it, and every notification your app
+  scheduled was delivered by iOS and then silently dropped — no banner, no
+  `localNotificationReceived` event, and nothing in your logs. Plugin load order decided
+  whether it happened, so it could look intermittent. Stay22 now chains to whichever
+  plugin holds the slot, whatever order the two load in.
+- The message explaining a handler-slot conflict now reaches the device log. It went
+  through Capacitor's logger, which writes to stdout and appears in neither the unified
+  log nor Xcode, so the one line that would have explained the above was unreadable.
+
 ## [0.1.1] - 2026-09-18
 
 First usable release. 0.1.0 was withdrawn: its iOS half did not build, because it called

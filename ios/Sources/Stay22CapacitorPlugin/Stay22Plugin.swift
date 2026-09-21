@@ -1,4 +1,5 @@
 import Capacitor
+import os
 import Stay22SDK
 import UIKit
 import UserNotifications
@@ -91,15 +92,31 @@ public class Stay22Plugin: CAPPlugin, CAPBridgedPlugin, Stay22EventListener {
 
         guard router.localNotificationHandler !== handler else { return }
 
+        // The displacer becomes our predecessor when we do not have one. We load before it
+        // whenever plugin order puts us first, and without this the reclaim below would
+        // leave us holding the slot with nothing behind us -- silently swallowing every
+        // notification the app schedules through its own plugin. No-op when we already have
+        // a predecessor, which is what keeps a third plugin from erasing it.
+        let adopted = handler.adoptIfUnchained(router.localNotificationHandler)
+
         // Put the *same* handler back rather than building a new one around the displacer.
         // A plugin that took the slot without chaining is not carrying our predecessor, so
         // re-chaining it would drop the app's original handler permanently.
         router.localNotificationHandler = handler
-        CAPLog.print(
-            "[Stay22] Another plugin took Capacitor's local-notification handler slot; "
-            + "Stay22 reclaimed it. If that plugin's own notifications stop working, "
-            + "load it before Stay22."
-        )
+
+        // `os.Logger`, not `CAPLog.print`: CAPLog writes to stdout, which neither the
+        // unified log nor `xcodebuild`'s output captures, so the one message that explains
+        // a partner's missing notifications was unreadable exactly when it was needed.
+        // The SDK's own `os.log` lines do show up under
+        // `xcrun simctl spawn <device> log show`.
+        let log = Logger(subsystem: "com.stay22.capacitor", category: "notifications")
+        // Literals, not concatenation: `Logger` takes an `OSLogMessage`, which a `String`
+        // built with `+` cannot become.
+        if adopted {
+            log.notice("[Stay22] Another plugin took Capacitor's local-notification handler slot; Stay22 reclaimed it and chained to that plugin, so its own notifications keep working.")
+        } else {
+            log.error("[Stay22] Another plugin took Capacitor's local-notification handler slot; Stay22 reclaimed it but already had a predecessor, so that plugin's own notifications will not reach it. Load it before Stay22.")
+        }
     }
 
     // MARK: - Lifecycle

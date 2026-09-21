@@ -14,15 +14,44 @@ final class Stay22NotificationHandler: NSObject, NotificationHandlerProtocol {
     /// would go nil the moment the other plugin's own reference did, and that app would
     /// stop receiving its own notifications with nothing to show for it.
     ///
-    /// Captured once and never reassigned. Rebuilding the chain against whatever occupies
-    /// the slot later would drop this handler and everything behind it: a third plugin that
-    /// takes the slot without chaining does not carry our predecessor, so re-chaining *it*
-    /// would silently remove the app's original handler for good.
-    private let previous: NotificationHandlerProtocol?
+    /// Never *re*assigned once it holds someone. Rebuilding the chain against whatever
+    /// occupies the slot later would drop this handler and everything behind it: a third
+    /// plugin that takes the slot without chaining does not carry our predecessor, so
+    /// re-chaining *it* would silently remove the app's original handler for good.
+    ///
+    /// Filling it when it is still nil is the opposite case and is safe -- see
+    /// `adoptIfUnchained`.
+    private var previous: NotificationHandlerProtocol?
 
     init(chainingTo previous: NotificationHandlerProtocol?) {
         self.previous = previous
         super.init()
+    }
+
+    /// Take `candidate` as our predecessor, but only if we do not have one yet.
+    ///
+    /// Plugin load order decides whether we have one at all. Load after
+    /// `@capacitor/local-notifications` and `init` captures it. Load *before* it and we
+    /// capture nil, that plugin then takes the slot from us, and the plugin puts us back on
+    /// the next `didBecomeActive` -- leaving us holding the slot with nothing behind us.
+    /// From then on `willPresent` returns `[]` for every notification Stay22 did not
+    /// schedule, which iOS obeys: the notification is delivered, the app says present
+    /// nothing, and it never appears. The app's own notifications stop working and nothing
+    /// says so.
+    ///
+    /// Measured 2026-09-20 in `NotificationJourneyUITests`, which failed about half the
+    /// time on exactly this: `Received response 0 for willPresentNotification` with
+    /// `authorizationStatus: Authorized` in the simulator log.
+    ///
+    /// The guard above still holds: refusing to *replace* a predecessor is what stops a
+    /// third plugin from erasing the app's original handler. Filling an empty slot takes
+    /// nothing away.
+    /// Returns whether it took one, so the caller can say which case it logged.
+    @discardableResult
+    func adoptIfUnchained(_ candidate: NotificationHandlerProtocol?) -> Bool {
+        guard previous == nil, let candidate, candidate !== self else { return false }
+        previous = candidate
+        return true
     }
 
     func willPresent(notification: UNNotification) -> UNNotificationPresentationOptions {
