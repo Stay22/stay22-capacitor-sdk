@@ -55,8 +55,21 @@ final class Stay22NotificationHandler: NSObject, NotificationHandlerProtocol {
     }
 
     func willPresent(notification: UNNotification) -> UNNotificationPresentationOptions {
-        guard Stay22.handleWillPresentNotification(notification) else {
+        // The bridge is built against a published native binary, so keep this routing
+        // check compatible with both older IDs and per-attempt UUID IDs.
+        let identifier = notification.request.identifier
+        let dottedPrefix = "stay22_delayed."
+        let attemptPrefix = "stay22_delayed_"
+        let belongsToStay22 = identifier == "stay22_delayed"
+            || (identifier.hasPrefix(dottedPrefix)
+                && UUID(uuidString: String(identifier.dropFirst(dottedPrefix.count))) != nil)
+            || (identifier.hasPrefix(attemptPrefix)
+                && UUID(uuidString: String(identifier.dropFirst(attemptPrefix.count))) != nil)
+        guard belongsToStay22 else {
             return previous?.willPresent(notification: notification) ?? []
+        }
+        guard Stay22.handleWillPresentNotification(notification) else {
+            return []
         }
         // `.list` is what keeps the offer in Notification Centre once the banner times
         // out; without it a user who misses the banner loses the offer entirely.

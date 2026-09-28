@@ -48,12 +48,24 @@ class Stay22Plugin : Plugin() {
 
     @PluginMethod
     fun setEnabled(call: PluginCall) = resolve(call) {
-        Stay22.isEnabled = call.requireBoolean("enabled")
+        val application = context.applicationContext as? Application
+            ?: throw PluginFailure(
+                "native_failure",
+                "Stay22 needs an Application context to save consent.",
+            )
+        Stay22.setEnabled(application, call.requireBoolean("enabled"))
         null
     }
 
     @PluginMethod
-    fun isEnabled(call: PluginCall) = resolve(call) { value(Stay22.isEnabled) }
+    fun isEnabled(call: PluginCall) = resolve(call) {
+        val application = context.applicationContext as? Application
+            ?: throw PluginFailure(
+                "native_failure",
+                "Stay22 needs an Application context to read consent.",
+            )
+        value(Stay22.readEnabled(application))
+    }
 
     @PluginMethod
     fun setMedium(call: PluginCall) = resolve(call) {

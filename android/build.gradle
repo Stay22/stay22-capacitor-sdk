@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         // The wrapped Stay22 SDK has the same floor.
-        minSdk 26
+        minSdk 24
         targetSdk project.hasProperty('targetSdkVersion') ? rootProject.ext.targetSdkVersion : 34
         versionCode 1
         versionName "1.0"
@@ -45,6 +45,6 @@ android {
 dependencies {
     implementation project(':capacitor-android')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
-    implementation 'com.stay22:sdk:1.2.0'
+    implementation 'com.stay22:sdk:1.4.0'
     testImplementation "junit:junit:$junitVersion"
 }

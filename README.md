@@ -7,7 +7,7 @@ This Capacitor 6 plugin wraps the Stay22 iOS and Android SDKs.
 Install from GitHub. The package is not published to npm.
 
 ```bash
-npm install github:Stay22/stay22-capacitor-sdk#0.1.2
+npm install github:Stay22/stay22-capacitor-sdk#0.2.0
 npx cap sync
 ```
 
@@ -25,6 +25,9 @@ Do this rather than calling `initialize()` wherever you can.
 ```xml
 <key>Stay22PartnerAID</key>
 <string>your-partner-id</string>
+<!-- Add this if your app requires an affirmative consent choice before Stay22 runs. -->
+<key>Stay22RequiresConsent</key>
+<true/>
 ```
 
 `android/app/src/main/AndroidManifest.xml`, inside `<application>`:
@@ -33,6 +36,10 @@ Do this rather than calling `initialize()` wherever you can.
 <meta-data
     android:name="com.stay22.sdk.PartnerAID"
     android:value="your-partner-id" />
+<!-- Add this if your app requires an affirmative consent choice before Stay22 runs. -->
+<meta-data
+    android:name="com.stay22.sdk.RequiresConsent"
+    android:value="true" />
 ```
 
 The plugin reads those keys while Capacitor sets up its bridge, before any of your
@@ -41,8 +48,8 @@ JavaScript runs. That includes a notification tap that cold-starts the app.
 Use `Stay22.initialize({ aid })` only when the partner ID is known at runtime. On
 Android that call can miss the first Activity resume.
 
-The wrapped Android SDK needs API 26. A default Capacitor 6 app is API 22; set
-`minSdkVersion` to 26 in `variables.gradle`.
+The wrapped Android SDK needs API 24. A default Capacitor 6 app is API 22; set
+`minSdkVersion` to 24 in `variables.gradle`.
 
 On iOS the plugin needs a deployment target of 15.0. A default Capacitor 6 app is 13.0,
 and `npx cap sync` stops with "required a higher minimum deployment target" until you
@@ -99,10 +106,21 @@ Android SDK and manifest merging folds it into your app.
 
 ## Use
 
+If you declare the consent-required key above, the SDK ignores enabled values saved by
+earlier versions until your app calls `setEnabled({ enabled: true })`. On each app
+launch, pass your app's current consent choice to `setEnabled()` before sending travel
+context. Call it again as soon as that choice changes, including when consent is
+withdrawn. The SDK retains the explicit choice for notifications delivered while the
+app is closed.
+
+The SDK's built-in notification title and body follow the device's English or French
+language at scheduling time. A native notification configuration supplied by your app
+keeps its text unchanged.
+
 ```ts
 import { Stay22 } from '@stay22/capacitor';
 
-// Your consent gate. Persisted, and safe to set before the SDK starts.
+// Keep the native SDK in step with your app's consent choice.
 await Stay22.setEnabled({ enabled: userHasOptedIn });
 
 await Stay22.requestNotificationPermission();

@@ -5,6 +5,20 @@ This project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-25
+
+### Added
+- Apps can require an affirmative consent choice before Stay22 starts by declaring the native consent-required key and calling `setEnabled()` when that choice changes.
+- Built-in notifications now use French text on devices set to French. Partner-supplied notification text stays unchanged.
+
+### Changed
+- The plugin now wraps iOS and Android SDK 1.4.0. Android apps can use API 24 or newer.
+
+### Fixed
+- Disabling the SDK or clearing travel context now prevents a pending notification from
+  appearing, including when the scheduling decision was already in progress.
+- Android saves the consent choice before SDK initialization.
+
 ## [0.1.2] - 2026-09-21
 
 ### Fixed
