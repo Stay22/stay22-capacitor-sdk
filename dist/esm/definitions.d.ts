@@ -1,104 +1,104 @@
-/**
- * The host app hands over explicit travel intent: where the user is going and when. The
- * SDK decides whether to schedule a single local notification offering accommodation
- * there, opening a Stay22 booking page when it is tapped.
- *
- * Declare your partner ID natively rather than calling {@link Stay22Plugin.initialize}
- * where you can: `Stay22PartnerAID` in `Info.plist`, or `com.stay22.sdk.PartnerAID` in
- * the Android manifest. The plugin reads it while Capacitor sets up its bridge, before
- * any of your JavaScript runs, which is what gives a notification tapped from a cold
- * start its best chance of opening its booking page.
- */
 import type { PluginListenerHandle } from '@capacitor/core';
+import type { NotificationRequest, NotificationUpdate, NotificationReference, NotificationResult, NotificationQuery, NotificationReceipt } from './notifications';
+export type * from './notifications';
+/** A complete trip snapshot. Native code owns validation and rejected replacement effects. */
 export interface TravelContext {
     address?: string;
     latitude?: number;
     longitude?: number;
-    /** ISO date, `YYYY-MM-DD`. */
     checkinDate?: string;
-    /** ISO date, `YYYY-MM-DD`. */
     checkoutDate?: string;
     hotelName?: string;
     adults?: number;
     children?: number;
+    /** Extra trip facts, forwarded without interpreting the keys. */
+    context?: Record<string, string>;
 }
-/** An event the SDK reports as its state changes: scheduling, delivery, taps. */
-export interface Stay22SDKEvent {
-    type: string;
-    description: string;
-    /** Present on `notificationClicked`: the booking URL that was opened. */
-    url?: string;
+/** Native event facts; description is a human-readable summary only. */
+export type Stay22SDKEvent = {
+    readonly description: string;
+} & ({
+    readonly type: 'notificationChanged';
+    readonly receipt: NotificationReceipt;
+} | {
+    readonly type: 'locationUpdated' | 'notificationShown';
+    readonly destination: string;
 }
+/** Delay is in seconds and retains native precision. */
+ | {
+    readonly type: 'notificationScheduled';
+    readonly destination: string;
+    readonly delay: number;
+}
+/** URL is the saved Stay22 link, even when a supplier opens. */
+ | {
+    readonly type: 'notificationClicked';
+    readonly destination: string;
+    readonly url: string;
+} | {
+    readonly type: 'notificationBlocked' | 'notificationSkipped' | 'notificationCancelled';
+    readonly reason: string;
+} | {
+    readonly type: 'enabledChanged';
+    readonly isEnabled: boolean;
+} | {
+    readonly type: 'travelContextCleared' | 'unknown';
+});
 export interface Stay22Plugin {
     /**
-     * Starts the SDK with your partner ID. A no-op once it is already running.
-     *
-     * Prefer the native declaration described above; use this only when the partner ID is
-     * known at runtime. Resolving means "the SDK is running", not "ready to schedule".
-     * Partner configuration still loads afterwards.
+     * Initializes with your partner ID. A no-op once running, not a configuration-readiness signal.
+     * Declare Stay22PartnerAID in Info.plist or com.stay22.sdk.PartnerAID in the manifest
+     * when available, so the plugin can initialize before JavaScript runs on a cold start.
      */
     initialize(options: {
         aid: string;
     }): Promise<void>;
-    /** Whether native initialization has happened. Not a readiness signal. */
     isInitialized(): Promise<{
         value: boolean;
     }>;
-    /**
-     * Enables or disables the SDK. While disabled nothing is scheduled and any pending
-     * notification is cleared.
-     *
-     * Persisted across launches and settable before {@link initialize}, which is what makes
-     * it usable as your consent gate. Defaults to enabled.
-     */
+    /** Persisted consent gate; can be set before initialize. Opt-out revokes both modes. */
     setEnabled(options: {
         enabled: boolean;
     }): Promise<void>;
     isEnabled(): Promise<{
         value: boolean;
     }>;
-    /** Attribution `medium` on the booking link. Defaults to `pushnotif`. */
-    setMedium(options: {
-        medium: string;
-    }): Promise<void>;
-    /** Attribution `campaign` on the booking link. Omit the value to clear it. */
+    /** Attribution campaign for subsequent requests. Omit to clear. */
     setCampaignId(options: {
         campaignId?: string;
     }): Promise<void>;
     hasNotificationPermission(): Promise<{
         value: boolean;
     }>;
-    /**
-     * Shows the system prompt and reports what the user chose: the real answer, not the
-     * state before the prompt appeared. Resolves with the current state when no prompt can
-     * be shown.
-     */
     requestNotificationPermission(): Promise<{
         value: boolean;
     }>;
-    /** Replaces any previous travel context outright. */
-    setTravelContext(options: TravelContext): Promise<void>;
-    /** Clears the travel context and any pending notification. */
+    /** Acknowledges durable submission; inspect current state for server/OS resolution. */
+    ensureNotification(request: NotificationRequest): Promise<NotificationResult>;
+    /** Complete timing revision. Keep original reference and arguments when retrying. */
+    updateNotification(options: NotificationUpdate): Promise<NotificationResult>;
+    replaceNotification(options: {
+        reference: NotificationReference;
+        request: NotificationRequest;
+    }): Promise<NotificationResult>;
+    cancelNotification(options: {
+        reference: NotificationReference;
+    }): Promise<NotificationResult>;
+    /** Read-only; unavailable differs from an available query with no retained offers. */
+    getNotificationState(): Promise<NotificationQuery>;
+    /** One bounded test of a complete trip, with no persistent force flag or timing options. */
+    scheduleDiagnosticNotification(options: {
+        trip: TravelContext;
+    }): Promise<NotificationResult>;
+    /** @deprecated Revokes both modes. Prefer cancellation with a specific reference. */
     clearTravelContext(): Promise<void>;
     /**
-     * Whether Stay22 is installed in Capacitor's local-notification handler slot.
-     *
-     * On iOS, false means another plugin loaded after this one and took the slot without
-     * chaining, so Stay22 notifications will open nothing. Check it if offers stop working.
-     * On Android this is always true: taps go through the SDK's own activity, not a shared
-     * Capacitor slot.
+     * On iOS, whether this plugin owns Capacitor's notification handler slot. False means
+     * another plugin displaced it. Android taps use the SDK Activity and return true.
      */
     isNotificationHandlerInstalled(): Promise<{
         value: boolean;
     }>;
-    /**
-     * Runs the scheduling pipeline immediately, bypassing local gates and the server's
-     * per-device cooldown, and shortens the delay to a few seconds. Writes no cooldown and
-     * no server lock, so it stays repeatable. For integration testing only. Never call
-     * this from a shipped build.
-     */
-    forceNotification(): Promise<void>;
-    /** Fires for every SDK event: scheduling, delivery, taps and state changes. */
     addListener(eventName: 'stay22Event', listenerFunc: (event: Stay22SDKEvent) => void): Promise<PluginListenerHandle>;
     removeAllListeners(): Promise<void>;
 }

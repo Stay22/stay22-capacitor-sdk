@@ -7,11 +7,13 @@ This Capacitor 6 plugin wraps the Stay22 iOS and Android SDKs.
 Install from GitHub. The package is not published to npm.
 
 ```bash
-npm install github:Stay22/stay22-capacitor-sdk#0.2.0
+npm install github:Stay22/stay22-capacitor-sdk#1.0.0
 npx cap sync
 ```
 
 Pin the tag you want from [stay22-capacitor-sdk](https://github.com/Stay22/stay22-capacitor-sdk/releases).
+The examples below describe this source tree. For a released package, use the README
+at the tag you install; the published package may expose a different API.
 
 This package ships the iOS SDK binary it wraps. Android resolves `com.stay22:sdk` from
 Stay22's public GitHub Maven URL; declare that repository on the host app as shown below.
@@ -77,7 +79,7 @@ the same URL there. Templates that set `FAIL_ON_PROJECT_REPOS` will reject the
 
 The SDK checks which travel booking apps are on the device and uses that to pick the
 booking experience. iOS only answers that check for URL schemes the host app has
-declared, and returns `false` for any it has not, so add all five to
+declared, and the SDK treats any other app as unknown, so add all five to
 `ios/App/App/Info.plist`:
 
 ```xml
@@ -99,7 +101,7 @@ declared, and returns `false` for any it has not, so add all five to
 | `hotelsapp` | Hotels.com |
 | `agoda` | Agoda |
 
-Leave one out and the SDK treats that app as absent. It logs what is missing at startup,
+Leave one out and the SDK cannot tell whether that app is installed. It logs what is missing at startup,
 by app rather than by scheme, so a missing `expda` reads as `expedia` in the Xcode
 console. Android needs nothing here: the `<queries>` block ships inside the Stay22
 Android SDK and manifest merging folds it into your app.
@@ -114,8 +116,8 @@ withdrawn. The SDK retains the explicit choice for notifications delivered while
 app is closed.
 
 The SDK's built-in notification title and body follow the device's English or French
-language at scheduling time. A native notification configuration supplied by your app
-keeps its text unchanged.
+language at scheduling time. When your Stay22 account has notification text for the trip,
+the SDK shows that instead.
 
 ```ts
 import { Stay22 } from '@stay22/capacitor';
@@ -125,12 +127,32 @@ await Stay22.setEnabled({ enabled: userHasOptedIn });
 
 await Stay22.requestNotificationPermission();
 
-await Stay22.setTravelContext({
-  address: 'Paris, France',
-  checkinDate: '2026-03-20',
-  checkoutDate: '2026-03-25',
-});
+// Illustrative app-chosen validity bounds, not SDK defaults.
+const now = Date.now();
+const request = {
+  trip: { address: 'Paris, France' },
+  timing: { type: 'after' as const, delayMs: 30 * 60 * 1000 },
+  expiresAtMs: now + 12 * 60 * 60 * 1000,
+  actionExpiresAtMs: now + 24 * 60 * 60 * 1000,
+};
+const result = await Stay22.ensureNotification(request);
 ```
+
+Inspect `result.outcome` and `result.reason`, and save the receipt's reference when one
+is returned. Submission is an acknowledgement; preparation can still reject the offer.
+Retain the same request and deadlines when retrying the same occurrence.
+
+Each request carries a complete trip; omitted fields do not inherit earlier values.
+Use a saved reference with `updateNotification` to change timing, `replaceNotification`
+to submit a different trip, or `cancelNotification` to cancel. Replacement revokes the
+previous offer before preparing the new one, even if the new request is rejected. Retain
+the original reference and arguments when retrying a command. An update supplies a complete
+new timing intent: omitting `allowedWindows` removes your restriction, and omitted deadlines
+require a valid cached account policy.
+
+Read `getNotificationState()` or listen for `notificationChanged` to inspect later state.
+A queued notification does not prove that the operating system displayed it at the
+selected time.
 
 ## iOS notification delegate
 
@@ -157,19 +179,24 @@ Stay22.addListener('stay22Event', (event) => {
 });
 ```
 
-`type` is one of `locationUpdated`, `notificationScheduled`, `notificationShown`,
-`notificationClicked`, `notificationBlocked`, `notificationSkipped`,
-`notificationCancelled`, `enabledChanged`, `travelContextCleared`.
-`description` is plain text. `notificationClicked` also carries the opened `url`.
+`type` is one of `notificationChanged`, `locationUpdated`, `notificationScheduled`,
+`notificationShown`, `notificationClicked`, `notificationBlocked`, `notificationSkipped`,
+`notificationCancelled`, `enabledChanged`, `travelContextCleared`, or `unknown`. Follow a
+notification's lifecycle with `notificationChanged`; the SDK no longer emits
+`locationUpdated`, `notificationScheduled`, `notificationShown`, `notificationSkipped`,
+`notificationBlocked` or `notificationCancelled` for new notifications.
+`description` is plain text. `notificationChanged` carries a receipt;
+`notificationClicked` carries the Stay22 booking page `url` the SDK saved with the notification, even when the tap opens a booking app.
 
 ## Testing
 
 ```ts
-await Stay22.forceNotification();
+const result = await Stay22.scheduleDiagnosticNotification({
+  trip: { address: 'Paris, France' },
+});
 ```
 
-Debug helper that displays a notification without the usual schedule. Leave this
-call out of the binary you send to users.
+This is a per-call diagnostic. Use test controls only in internal builds.
 
 ## Support
 

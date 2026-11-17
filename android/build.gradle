@@ -35,6 +35,9 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    // Transport tests call the SDK's pre-initialization result path only.
+    testOptions { unitTests.returnDefaultValues = true }
+
     kotlinOptions {
         jvmTarget = "17"
     }
@@ -43,8 +46,9 @@ android {
 // The host app declares Stay22's public Maven repository. Declaring it here breaks
 // consumers that enforce repositoriesMode = FAIL_ON_PROJECT_REPOS.
 dependencies {
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3"
     implementation project(':capacitor-android')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
-    implementation 'com.stay22:sdk:1.4.0'
+    implementation 'com.stay22:sdk:3.1.1'
     testImplementation "junit:junit:$junitVersion"
 }

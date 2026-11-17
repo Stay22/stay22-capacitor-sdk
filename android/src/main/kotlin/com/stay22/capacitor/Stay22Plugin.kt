@@ -12,11 +12,19 @@ import com.getcapacitor.annotation.CapacitorPlugin
 import com.stay22.sdk.Stay22
 import com.stay22.sdk.Stay22Event
 import com.stay22.sdk.Stay22EventListener
-import com.stay22.sdk.TravelContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
 @CapacitorPlugin(name = "Stay22")
 class Stay22Plugin : Plugin() {
+    private val queryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val eventListener = Stay22EventListener(::forwardEvent)
 
     override fun load() {
@@ -26,6 +34,7 @@ class Stay22Plugin : Plugin() {
     }
 
     override fun handleOnDestroy() {
+        queryScope.cancel()
         Stay22.advanced.setEventListener(null)
         super.handleOnDestroy()
     }
@@ -68,12 +77,6 @@ class Stay22Plugin : Plugin() {
     }
 
     @PluginMethod
-    fun setMedium(call: PluginCall) = resolve(call) {
-        Stay22.medium = call.requireString("medium")
-        null
-    }
-
-    @PluginMethod
     fun setCampaignId(call: PluginCall) = resolve(call) {
         val campaignId = call.getString("campaignId")?.trim()
         if (campaignId != null && campaignId.isEmpty()) {
@@ -111,20 +114,56 @@ class Stay22Plugin : Plugin() {
     }
 
     @PluginMethod
-    fun setTravelContext(call: PluginCall) = resolveInitialized(call) {
-        Stay22.setTravelContext(
-            TravelContext(
-                address = call.getString("address"),
-                latitude = call.getDouble("latitude"),
-                longitude = call.getDouble("longitude"),
-                checkinDate = call.getString("checkinDate"),
-                checkoutDate = call.getString("checkoutDate"),
-                hotelName = call.getString("hotelName"),
-                adults = call.getInt("adults"),
-                children = call.getInt("children"),
-            ),
-        )
-        null
+    fun ensureNotification(call: PluginCall) = resolve(call) {
+        notificationCommand(call, "ensureNotification")
+    }
+
+    @PluginMethod
+    fun updateNotification(call: PluginCall) = resolve(call) {
+        notificationCommand(call, "updateNotification")
+    }
+
+    @PluginMethod
+    fun replaceNotification(call: PluginCall) = resolve(call) {
+        notificationCommand(call, "replaceNotification")
+    }
+
+    @PluginMethod
+    fun cancelNotification(call: PluginCall) = resolve(call) {
+        notificationCommand(call, "cancelNotification")
+    }
+
+    @PluginMethod
+    fun scheduleDiagnosticNotification(call: PluginCall) = resolve(call) {
+        notificationCommand(call, "scheduleDiagnosticNotification")
+    }
+
+    @PluginMethod
+    fun getNotificationState(call: PluginCall) {
+        onMain(call) {
+            // This scope owns the read only; destroying the bridge cannot revoke an offer.
+            queryScope.launch {
+                try {
+                    call.resolve(JSObject(JSONObject(NotificationBridgeCodec.map(Stay22.notifications.current())).toString()))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (failure: Exception) {
+                    call.reject(failure.message ?: "Notification query failed.", "native_failure", failure)
+                }
+            }
+        }
+    }
+
+    private fun notificationCommand(call: PluginCall, method: String): JSObject =
+        JSObject(JSONObject(NotificationBridgeCodec.command(method, bridgeInput(call.data))).toString())
+
+    // JSONObject.NULL must stay an explicit null, rather than becoming an invalid
+    // object or disappearing. Lists and nested trips retain their complete shape.
+    private fun bridgeInput(value: Any?): Any? = when (value) {
+        null, JSONObject.NULL -> null
+        is JSONObject -> value.keys().asSequence().associateWith { bridgeInput(value.get(it)) }
+        is JSONArray -> (0 until value.length()).map { bridgeInput(value.get(it)) }
+        else -> value
     }
 
     @PluginMethod
@@ -138,12 +177,6 @@ class Stay22Plugin : Plugin() {
         // Android routes taps through the SDK's own Activity and has no shared delegate
         // or single Capacitor handler slot that another plugin can displace.
         resolve(call) { value(true) }
-    }
-
-    @PluginMethod
-    fun forceNotification(call: PluginCall) = resolveInitialized(call) {
-        Stay22.advanced.scheduleNotification(force = true)
-        null
     }
 
     private fun initializeFromManifest() {
@@ -223,47 +256,7 @@ class Stay22Plugin : Plugin() {
             ?: throw PluginFailure("missing_argument", "Missing required argument '$key'.")
 
     private fun forwardEvent(event: Stay22Event) {
-        val payload = JSObject()
-        when (event) {
-            is Stay22Event.LocationUpdated -> {
-                payload.put("type", "locationUpdated")
-                payload.put("description", "Location: ${event.destination}")
-            }
-            is Stay22Event.NotificationScheduled -> {
-                payload.put("type", "notificationScheduled")
-                payload.put("description", "Scheduled: ${event.destination} in ${event.delay.toInt()}s")
-            }
-            is Stay22Event.NotificationShown -> {
-                payload.put("type", "notificationShown")
-                payload.put("description", "Shown: ${event.destination}")
-            }
-            is Stay22Event.NotificationClicked -> {
-                payload.put("type", "notificationClicked")
-                payload.put("description", "Clicked: ${event.destination}")
-                payload.put("url", event.url)
-            }
-            is Stay22Event.NotificationBlocked -> {
-                payload.put("type", "notificationBlocked")
-                payload.put("description", "Blocked: ${event.reason}")
-            }
-            is Stay22Event.NotificationSkipped -> {
-                payload.put("type", "notificationSkipped")
-                payload.put("description", "Skipped: ${event.reason}")
-            }
-            is Stay22Event.NotificationCancelled -> {
-                payload.put("type", "notificationCancelled")
-                payload.put("description", "Cancelled: ${event.reason}")
-            }
-            is Stay22Event.EnabledChanged -> {
-                payload.put("type", "enabledChanged")
-                payload.put("description", "SDK enabled: ${event.isEnabled}")
-            }
-            Stay22Event.TravelContextCleared -> {
-                payload.put("type", "travelContextCleared")
-                payload.put("description", "Travel context cleared")
-            }
-        }
-
+        val payload = JSObject(JSONObject(NotificationBridgeCodec.map(event)).toString())
         // The SDK can replay worker events before JavaScript subscribes.
         notifyListeners("stay22Event", payload, true)
     }

@@ -1,6 +1,6 @@
 {
   "name": "@stay22/capacitor",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "description": "Stay22 SDK for Capacitor. Turns explicit travel intent into a single, well-timed local notification that opens a Stay22 accommodation booking page.",
   "license": "SEE LICENSE IN LICENSE",
   "main": "dist/plugin.cjs.js",
@@ -39,7 +39,8 @@
     "verify:android": "./scripts/verify-android.sh",
     "verify:android:published": "./scripts/verify-android.sh --published",
     "verify:ios": "./scripts/verify-ios.sh",
-    "verify:ios:published": "./scripts/verify-ios.sh --published"
+    "verify:ios:published": "./scripts/verify-ios.sh --published",
+    "test": "npm run build --workspaces=false && node --test test/*.test.cjs"
   },
   "devDependencies": {
     "@capacitor/android": "6.2.2",
